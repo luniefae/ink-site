@@ -329,11 +329,103 @@ function buildStoryPage(site, st) {
   });
 }
 
+// ------------------------------------------------------- password gate
+
+// Password comes from the SITE_PASSWORD env var (CI) or a git-ignored
+// .sitepassword file (local). No password = site builds unprotected.
+function getPassword() {
+  if (process.env.SITE_PASSWORD) return process.env.SITE_PASSWORD.trim();
+  const f = path.join(ROOT, ".sitepassword");
+  if (fs.existsSync(f)) return fs.readFileSync(f, "utf8").trim();
+  return null;
+}
+
+const PBKDF2_ITERATIONS = 100000;
+
+// AES-256-GCM encrypt a full page: the original <head> is kept (so fonts,
+// styles and relative paths still work) and the <body> is replaced with the
+// "ante up" gate. Web Crypto in the browser reverses it with the password.
+function gateWrap(html, password, salt) {
+  const crypto = require("crypto");
+  const inner = /<body>([\s\S]*)<\/body>/.exec(html)[1];
+  const head = /<head>([\s\S]*?)<\/head>/.exec(html)[1];
+  const key = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 32, "sha256");
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([cipher.update(inner, "utf8"), cipher.final(), cipher.getAuthTag()]);
+
+  // The input is a masked text field with no surrounding <form>, so browser
+  // password managers never offer to save or autofill it.
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>${head}<meta name="robots" content="noindex"></head>
+<body class="gate-body">
+<div class="table-edge" aria-hidden="true"></div>
+<div class="gate">
+  <div class="gate-card">
+    <div class="suit-row" aria-hidden="true"><span class="teal">♠</span><span class="magenta">♥</span><span class="teal">♣</span><span class="magenta">♦</span></div>
+    <h1 class="gate-title">Private table</h1>
+    <p class="gate-sub">Friends only — ante up to take a seat.</p>
+    <div class="gate-row">
+      <input id="ante" class="gate-input" type="text" name="table-code" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Table password" placeholder="the magic word">
+      <button id="deal" class="gate-btn" type="button">Ante up</button>
+    </div>
+    <p id="gate-err" class="gate-err" hidden>The house says no. Try again?</p>
+  </div>
+</div>
+<script>
+(function () {
+  var SALT = "${salt.toString("base64")}";
+  var IV = "${iv.toString("base64")}";
+  var DATA = "${ct.toString("base64")}";
+  function b(s) { var x = atob(s), a = new Uint8Array(x.length); for (var i = 0; i < x.length; i++) a[i] = x.charCodeAt(i); return a; }
+  function hex2buf(h) { var a = new Uint8Array(h.length / 2); for (var i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; }
+  function buf2hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (x) { return x.toString(16).padStart(2, "0"); }).join(""); }
+  async function open(key) {
+    var pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b(IV) }, key, b(DATA));
+    var raw = await crypto.subtle.exportKey("raw", key);
+    sessionStorage.setItem("fae-table", buf2hex(raw));
+    document.body.className = "";
+    document.body.innerHTML = new TextDecoder().decode(pt);
+  }
+  async function tryPw() {
+    var pw = document.getElementById("ante").value;
+    if (!pw) return;
+    try {
+      var km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+      var key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: b(SALT), iterations: ${PBKDF2_ITERATIONS}, hash: "SHA-256" },
+        km, { name: "AES-GCM", length: 256 }, true, ["decrypt"]);
+      await open(key);
+    } catch (e) {
+      document.getElementById("gate-err").hidden = false;
+      var card = document.querySelector(".gate-card");
+      card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+    }
+  }
+  document.getElementById("deal").addEventListener("click", tryPw);
+  document.getElementById("ante").addEventListener("keydown", function (e) { if (e.key === "Enter") tryPw(); });
+  var saved = sessionStorage.getItem("fae-table");
+  if (saved) {
+    crypto.subtle.importKey("raw", hex2buf(saved), { name: "AES-GCM" }, true, ["decrypt"])
+      .then(open)
+      .catch(function () { sessionStorage.removeItem("fae-table"); });
+  }
+})();
+</script>
+</body>
+</html>`;
+}
+
 // ------------------------------------------------------------------- build
 
 function main() {
   const site = JSON.parse(fs.readFileSync(path.join(ROOT, "site.json"), "utf8"));
   const stories = loadStories();
+  const password = getPassword();
+  const salt = password ? require("crypto").randomBytes(16) : null;
+  const writePage = (file, html) =>
+    fs.writeFileSync(file, password ? gateWrap(html, password, salt) : html);
 
   fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(path.join(DIST, "assets"), { recursive: true });
@@ -342,7 +434,7 @@ function main() {
     fs.copyFileSync(path.join(ASSETS_DIR, f), path.join(DIST, "assets", f));
   }
 
-  fs.writeFileSync(path.join(DIST, "index.html"), buildIndex(site, stories));
+  writePage(path.join(DIST, "index.html"), buildIndex(site, stories));
 
   // GitHub Pages keeps the custom domain via a CNAME file in the output
   if (site.domain) {
@@ -352,13 +444,14 @@ function main() {
   for (const st of stories) {
     const dir = path.join(DIST, "stories", st.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), buildStoryPage(site, st));
+    writePage(path.join(dir, "index.html"), buildStoryPage(site, st));
   }
 
   const totalCh = stories.reduce((s, st) => s + st.chapters.length, 0);
   const totalW = stories.reduce((s, st) => s + st.words, 0);
   console.log(
-    `✓ built ${stories.length} stories, ${totalCh} chapters, ${fmtNum(totalW)} words → dist/`
+    `✓ built ${stories.length} stories, ${totalCh} chapters, ${fmtNum(totalW)} words → dist/` +
+      (password ? " 🔒 password protection ON" : " (no password set — site is open)")
   );
 }
 

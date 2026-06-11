@@ -58,6 +58,32 @@ Then run `node build.js` again. That's it!
 
 Edit `site.json` to change the site title, tagline, and footer text.
 
+## Password protection
+
+The whole site sits behind an "ante up" gate. Page content is
+AES-encrypted at build time and decrypted in the browser, so view-source
+shows only ciphertext. Friends enter the password once per browser tab
+session.
+
+The password lives in two places (never in git):
+
+- **Locally:** the `.sitepassword` file (git-ignored) — used by `node build.js`
+- **On GitHub:** the `SITE_PASSWORD` repository secret — used by the deploy workflow
+
+To change the password, update both:
+
+```
+gh secret set SITE_PASSWORD --repo luniefae/ink-site --body "new-password"
+```
+
+…and put the same text in `.sitepassword`. The next push deploys with
+the new password. Delete the secret and the file to make the site open.
+
+Heads-up on what this does and doesn't hide: the *rendered site* is
+locked, but this repo is public, so the markdown sources (story titles,
+dates, word counts, Ellipsus links — never your prose) are visible to
+anyone who finds the repo.
+
 ## Layout
 
 ```
