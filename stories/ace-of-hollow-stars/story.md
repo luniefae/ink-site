@@ -4,7 +4,7 @@ status: ongoing
 suit: spades
 series: All In
 part: 1
-summary: Placeholder series opener — read before Stoneheart.
+summary: Placeholder series opener; read before Stoneheart.
 ---
 
 A completed story example, now part one of a series.
