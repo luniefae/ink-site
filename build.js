@@ -89,6 +89,22 @@ function fmtNum(n) {
   return n.toLocaleString("en-US");
 }
 
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function roman(n) {
+  if (!n || n < 1) return "•";
+  const table = [
+    [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"],
+    [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"],
+    [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let out = "";
+  for (const [v, sym] of table) while (n >= v) { out += sym; n -= v; }
+  return out;
+}
+
 const SUITS = {
   hearts: { glyph: "♥", color: "magenta" },
   diamonds: { glyph: "♦", color: "magenta" },
@@ -160,11 +176,31 @@ function loadStories() {
       summary: meta.data.summary || "",
       description: meta.body,
       suit: { name: suitName, ...SUITS[suitName] },
+      seriesName: meta.data.series || null,
+      part: parseInt(meta.data.part, 10) || null,
+      seriesGroup: null,
       chapters,
       words: chapters.reduce((s, c) => s + c.words, 0),
       latest,
     };
   });
+}
+
+// Stories sharing a `series:` name are grouped and ordered by `part:`.
+function attachSeries(stories) {
+  const map = new Map();
+  for (const st of stories) {
+    if (!st.seriesName) continue;
+    if (!map.has(st.seriesName)) map.set(st.seriesName, []);
+    map.get(st.seriesName).push(st);
+  }
+  for (const [name, parts] of map) {
+    parts.sort((a, b) => (a.part || 0) - (b.part || 0));
+    parts.forEach((p, i) => {
+      if (!p.part) console.warn(`! ${p.slug}: in series "${name}" but missing part number`);
+      p.seriesGroup = { name, anchor: "series-" + slugify(name), parts, index: i };
+    });
+  }
 }
 
 // ---------------------------------------------------------------- templates
@@ -218,6 +254,32 @@ function chapterRow(ch, { showStory } = {}) {
 </a>`;
 }
 
+function seriesCard(group) {
+  const totalCh = group.parts.reduce((s, p) => s + p.chapters.length, 0);
+  const totalW = group.parts.reduce((s, p) => s + p.words, 0);
+  return `<div class="series-card" id="${esc(group.anchor)}">
+      <p class="series-kicker"><span class="magenta" aria-hidden="true">♥</span> Series — read in order</p>
+      <h3 class="series-title">${esc(group.name)}</h3>
+      <p class="series-stats">${group.parts.length} stories<span class="dot" aria-hidden="true">·</span>${fmtNum(totalCh)} chapters<span class="dot" aria-hidden="true">·</span>${fmtNum(totalW)} words</p>
+      <ol class="series-parts">
+        ${group.parts
+          .map(
+            (p) => `<li><a class="series-part" href="stories/${esc(p.slug)}/">
+          <span class="part-num ${p.suit.color}">${roman(p.part)}</span>
+          <span class="part-title">${esc(p.title)}</span>
+          <span class="part-meta">
+            ${statusBadge(p.status)}
+            <span>${fmtNum(p.chapters.length)} ch</span>
+            <span class="dot" aria-hidden="true">·</span>
+            <span>${fmtNum(p.words)} words</span>
+          </span>
+        </a></li>`
+          )
+          .join("\n")}
+      </ol>
+    </div>`;
+}
+
 function buildIndex(site, stories) {
   const totalChapters = stories.reduce((s, st) => s + st.chapters.length, 0);
   const totalWords = stories.reduce((s, st) => s + st.words, 0);
@@ -269,9 +331,16 @@ function buildIndex(site, stories) {
 <section class="section" aria-labelledby="stories-h">
   <h2 class="section-title" id="stories-h"><span class="teal" aria-hidden="true">♠</span> Stories</h2>
   <div class="story-grid">
-    ${byRecency
-      .map(
-        (st) => `<a class="story-card" href="stories/${esc(st.slug)}/">
+    ${(() => {
+      const seenSeries = new Set();
+      return byRecency
+        .map((st) => {
+          if (st.seriesGroup) {
+            if (seenSeries.has(st.seriesGroup.name)) return "";
+            seenSeries.add(st.seriesGroup.name);
+            return seriesCard(st.seriesGroup);
+          }
+          return `<a class="story-card" href="stories/${esc(st.slug)}/">
       <span class="pip pip--tl ${st.suit.color}" aria-hidden="true">${st.suit.glyph}</span>
       <span class="pip pip--br ${st.suit.color}" aria-hidden="true">${st.suit.glyph}</span>
       <h3 class="story-card-title">${esc(st.title)}</h3>
@@ -283,9 +352,11 @@ function buildIndex(site, stories) {
         <span>${fmtNum(st.words)} words</span>
       </p>
       ${st.latest ? `<p class="story-card-updated">updated ${esc(fmtDate(st.latest.date))}</p>` : ""}
-    </a>`
-      )
-      .join("\n")}
+    </a>`;
+        })
+        .filter(Boolean)
+        .join("\n");
+    })()}
   </div>
 </section>`;
 
@@ -293,19 +364,23 @@ function buildIndex(site, stories) {
 }
 
 function buildStoryPage(site, st) {
+  const g = st.seriesGroup;
+  const prev = g && g.index > 0 ? g.parts[g.index - 1] : null;
+  const next = g && g.index < g.parts.length - 1 ? g.parts[g.index + 1] : null;
+
   const body = `
 <nav class="crumbs"><a href="../../">← back to the table</a></nav>
 
 <header class="story-header">
   <div class="story-suit ${st.suit.color}" aria-hidden="true">${st.suit.glyph}</div>
+  ${g ? `<p class="series-line">Part ${roman(st.part)} of <a href="../../#${esc(g.anchor)}">${esc(g.name)}</a></p>` : ""}
   <h1 class="story-title">${esc(st.title)}</h1>
-  <p class="story-meta">
+  <div class="token-row">
     ${statusBadge(st.status)}
-    <span>${fmtNum(st.chapters.length)} ${st.chapters.length === 1 ? "chapter" : "chapters"}</span>
-    <span class="dot" aria-hidden="true">·</span>
-    <span>${fmtNum(st.words)} words</span>
-    ${st.latest ? `<span class="dot" aria-hidden="true">·</span><span>updated ${esc(fmtDate(st.latest.date))}</span>` : ""}
-  </p>
+    <span class="token token--gold"><span class="token-ico" aria-hidden="true">♣</span>${fmtNum(st.chapters.length)} ${st.chapters.length === 1 ? "chapter" : "chapters"}</span>
+    <span class="token token--turq"><span class="token-ico" aria-hidden="true">⚄</span>${fmtNum(st.words)} words</span>
+    ${st.latest ? `<span class="token token--magenta"><span class="token-ico" aria-hidden="true">♦</span>updated ${esc(fmtDate(st.latest.date))}</span>` : ""}
+  </div>
   ${st.description ? `<div class="story-desc">${md(st.description)}</div>` : ""}
 </header>
 
@@ -319,6 +394,14 @@ function buildStoryPage(site, st) {
     }
   </div>
   <p class="aside-note">Chapters open on Ellipsus in a new tab.</p>
+  ${
+    g
+      ? `<nav class="part-nav" aria-label="Series navigation">
+    ${prev ? `<a class="part-link prev" href="../${esc(prev.slug)}/"><span class="part-dir">← Part ${roman(prev.part)}</span>${esc(prev.title)}</a>` : '<span class="part-spacer"></span>'}
+    ${next ? `<a class="part-link next" href="../${esc(next.slug)}/"><span class="part-dir">Part ${roman(next.part)} →</span>${esc(next.title)}</a>` : '<span class="part-spacer"></span>'}
+  </nav>`
+      : ""
+  }
 </section>`;
 
   return pageShell({
@@ -422,6 +505,7 @@ function gateWrap(html, password, salt) {
 function main() {
   const site = JSON.parse(fs.readFileSync(path.join(ROOT, "site.json"), "utf8"));
   const stories = loadStories();
+  attachSeries(stories);
   const password = getPassword();
   const salt = password ? require("crypto").randomBytes(16) : null;
   const writePage = (file, html) =>

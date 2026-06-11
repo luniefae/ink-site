@@ -2,7 +2,9 @@
 title: Ace of Hollow Stars
 status: complete
 suit: spades
-summary: Another placeholder — a finished story, to show off the "Complete" badge.
+series: The Hollow Wager
+part: 1
+summary: Placeholder series opener — read before Crimson Wager.
 ---
 
-A completed story example. Delete me and add your own.
+A completed story example, now part one of a series. Delete me and add your own.

@@ -33,6 +33,25 @@ Optional longer description shown on the story page.
 Supports **bold**, *italics*, and [links](https://example.com).
 ```
 
+## Series (connected stories)
+
+To group stories that should be read in order, add `series` and `part`
+to each story's `story.md`:
+
+```markdown
+---
+title: Ace of Hollow Stars
+series: The Hollow Wager
+part: 1
+...
+---
+```
+
+Stories sharing the same `series` name are pulled out of the regular
+grid and shown together in a full-width series card on the homepage,
+ordered by `part` (displayed as roman numerals). Their story pages get
+a "Part II of …" heading and previous/next-part navigation.
+
 ## Adding a chapter
 
 Drop a new `.md` file in the story's folder (any name except `story.md`).
