@@ -1,10 +1,10 @@
 ---
-title: The House Always Wins
+title: Stolen Constellations
 status: ongoing
 suit: hearts
-summary: A placeholder story — replace me! A cardsharp makes a deal she can't fold on.
+summary: A Regal AU of nobles, snobs, commoners, peasants, and Stelle still driving like a lunatic with carriages and wagons. Skott detonates around swans.
 ---
 
 This is the longer description that shows on the story page. You can use **bold**, *italics*, and [links](https://ellipsus.com).
 
-Replace this whole folder with your real story!
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce vel quam commodo, accumsan elit in, hendrerit velit. Vestibulum augue tellus, scelerisque eu dignissim id, aliquet at orci.
