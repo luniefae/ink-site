@@ -25,7 +25,8 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 500px at 50% -200px, #fffef9 0%, var(--paper) 70%),
+    radial-gradient(1200px 500px at 50% -200px, #fffef9 0%, rgba(250, 247, 239, 0) 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='190'%3E%3Ctext x='24' y='46' font-size='21' fill='%230c7f7d' fill-opacity='0.055' transform='rotate(-15 24 46)'%3E%E2%99%A0%3C/text%3E%3Ctext x='122' y='78' font-size='19' fill='%23c43387' fill-opacity='0.055' transform='rotate(11 122 78)'%3E%E2%99%A5%3C/text%3E%3Ctext x='62' y='136' font-size='20' fill='%23c1922f' fill-opacity='0.055' transform='rotate(-9 62 136)'%3E%E2%99%A6%3C/text%3E%3Ctext x='150' y='168' font-size='21' fill='%230c7f7d' fill-opacity='0.055' transform='rotate(13 150 168)'%3E%E2%99%A3%3C/text%3E%3C/svg%3E"),
     var(--paper);
   color: var(--ink);
   font-family: "Inter", system-ui, sans-serif;
@@ -59,6 +60,33 @@ a { color: var(--magenta-deep); }
 .hero {
   text-align: center;
   padding: 64px 0 40px;
+  position: relative;
+}
+
+.hero::before,
+.hero::after {
+  position: absolute;
+  font-size: 7.5rem;
+  line-height: 1;
+  opacity: 0.07;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hero::before {
+  content: "♣";
+  left: -8px;
+  top: 26px;
+  color: var(--turq-deep);
+  transform: rotate(-14deg);
+}
+
+.hero::after {
+  content: "♦";
+  right: -4px;
+  bottom: -16px;
+  color: var(--magenta);
+  transform: rotate(12deg);
 }
 
 .suit-row {
@@ -164,6 +192,15 @@ a { color: var(--magenta-deep); }
   gap: 10px;
 }
 
+.section-title::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  margin-left: 8px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold-soft), rgba(236, 220, 178, 0));
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);
@@ -243,9 +280,16 @@ a { color: var(--magenta-deep); }
 
 /* ------------------------------------------------------------ story grid */
 
+.story-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .story-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* auto-fit collapses empty tracks so a lone card fills the row */
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
   gap: 20px;
 }
 
@@ -288,7 +332,17 @@ a { color: var(--magenta-deep); }
 }
 
 .pip--tl { top: 12px; left: 14px; }
-.pip--br { bottom: 12px; right: 14px; transform: rotate(180deg); }
+
+/* bottom pip is a big tilted watermark for texture */
+.pip--br {
+  bottom: -18px;
+  right: -10px;
+  font-size: 5rem;
+  opacity: 0.08;
+  transform: rotate(-14deg);
+  pointer-events: none;
+  user-select: none;
+}
 
 .story-card-title {
   font-family: "Fraunces", serif;
@@ -328,7 +382,6 @@ a { color: var(--magenta-deep); }
 /* ----------------------------------------------------------- series cards */
 
 .series-card {
-  grid-column: 1 / -1;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);

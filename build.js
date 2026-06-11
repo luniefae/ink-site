@@ -330,17 +330,26 @@ function buildIndex(site, stories) {
 
 <section class="section" aria-labelledby="stories-h">
   <h2 class="section-title" id="stories-h"><span class="teal" aria-hidden="true">♠</span> Stories</h2>
-  <div class="story-grid">
+  <div class="story-flow">
     ${(() => {
+      // Series render as full-width blocks between grids of standalone
+      // cards, preserving overall recency order.
       const seenSeries = new Set();
-      return byRecency
-        .map((st) => {
-          if (st.seriesGroup) {
-            if (seenSeries.has(st.seriesGroup.name)) return "";
-            seenSeries.add(st.seriesGroup.name);
-            return seriesCard(st.seriesGroup);
-          }
-          return `<a class="story-card" href="stories/${esc(st.slug)}/">
+      const blocks = [];
+      let gridBuf = [];
+      const flush = () => {
+        if (gridBuf.length) blocks.push(`<div class="story-grid">\n${gridBuf.join("\n")}\n</div>`);
+        gridBuf = [];
+      };
+      for (const st of byRecency) {
+        if (st.seriesGroup) {
+          if (seenSeries.has(st.seriesGroup.name)) continue;
+          seenSeries.add(st.seriesGroup.name);
+          flush();
+          blocks.push(seriesCard(st.seriesGroup));
+          continue;
+        }
+        gridBuf.push(`<a class="story-card" href="stories/${esc(st.slug)}/">
       <span class="pip pip--tl ${st.suit.color}" aria-hidden="true">${st.suit.glyph}</span>
       <span class="pip pip--br ${st.suit.color}" aria-hidden="true">${st.suit.glyph}</span>
       <h3 class="story-card-title">${esc(st.title)}</h3>
@@ -352,10 +361,10 @@ function buildIndex(site, stories) {
         <span>${fmtNum(st.words)} words</span>
       </p>
       ${st.latest ? `<p class="story-card-updated">updated ${esc(fmtDate(st.latest.date))}</p>` : ""}
-    </a>`;
-        })
-        .filter(Boolean)
-        .join("\n");
+    </a>`);
+      }
+      flush();
+      return blocks.join("\n");
     })()}
   </div>
 </section>`;
