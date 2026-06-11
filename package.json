@@ -1,0 +1,11 @@
+{
+  "name": "ink-faelian-net",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static writing-stats site — stories and chapters tracked in markdown, chapters link out to Ellipsus.",
+  "scripts": {
+    "build": "node build.js",
+    "serve": "node serve.js",
+    "dev": "node build.js && node serve.js"
+  }
+}
